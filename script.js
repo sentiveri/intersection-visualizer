@@ -2,8 +2,12 @@ const container = document.getElementById('canvas-container');
 const scene = new THREE.Scene();
 // Nền trong suốt: gradient được vẽ bằng CSS phía sau canvas
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(8, 6, 10);
+const perspCam = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+perspCam.position.set(8, 6, 10);
+const orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+let camera = perspCam;      // camera đang dùng
+let usingOrtho = false;
+let orthoHalfH = 8;         // nửa chiều cao khung nhìn trực giao
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -16,6 +20,8 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.minDistance = 5;
 controls.maxDistance = 40;
+controls.minZoom = 0.3;
+controls.maxZoom = 4;
 
 // Ánh sáng
 scene.add(new THREE.HemisphereLight(0xbfdbfe, 0x0f172a, 0.55));
@@ -381,8 +387,51 @@ function flyTo(viewName) {
 // Người dùng kéo chuột giữa chừng thì huỷ chuyển động, tránh giật
 controls.addEventListener('start', () => { tween = null; });
 
+function updateOrthoFrustum() {
+  const aspect = window.innerWidth / window.innerHeight;
+  orthoCam.left = -orthoHalfH * aspect;
+  orthoCam.right = orthoHalfH * aspect;
+  orthoCam.top = orthoHalfH;
+  orthoCam.bottom = -orthoHalfH;
+  orthoCam.updateProjectionMatrix();
+}
+updateOrthoFrustum();
+
+// Đổi giữa camera phối cảnh <-> trực giao, giữ nguyên kích thước hiển thị
+function setProjection(ortho) {
+  if (ortho === usingOrtho) return;
+  const dir = camera.position.clone().sub(controls.target);
+  const t = Math.tan(THREE.MathUtils.degToRad(perspCam.fov / 2));
+  const next = ortho ? orthoCam : perspCam;
+
+  if (ortho) {
+    orthoHalfH = dir.length() * t;
+    orthoCam.zoom = 1;
+    updateOrthoFrustum();
+  } else {
+    dir.setLength(orthoHalfH / orthoCam.zoom / t);
+  }
+
+  next.position.copy(controls.target).add(dir);
+  next.quaternion.copy(camera.quaternion);
+  camera = next;
+  controls.object = next;
+  usingOrtho = ortho;
+
+  const btn = document.getElementById('btn-proj');
+  btn.textContent = ortho ? 'Camera: Trực giao' : 'Camera: Phối cảnh';
+  btn.classList.toggle('active', ortho);
+  controls.update();
+}
+
+document.getElementById('btn-proj').addEventListener('click', () => setProjection(!usingOrtho));
+
+// Giống Blender: các mặt chiếu dùng trực giao, góc 3D dùng phối cảnh
 document.querySelectorAll('.view-btn').forEach((btn) => {
-  btn.addEventListener('click', () => flyTo(btn.dataset.view));
+  btn.addEventListener('click', () => {
+    setProjection(btn.dataset.view !== 'iso');
+    flyTo(btn.dataset.view);
+  });
 });
 
 const btnRotate = document.getElementById('btn-rotate');
@@ -423,6 +472,7 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   [btnRotate, btnPulse, btnPoint].forEach((b) => b.classList.remove('active'));
   btnPoint.textContent = 'Hiện đường sinh & điểm giao';
 
+  setProjection(false);
   flyTo('iso');
   drawProgress = 0;
   intro = 0;
@@ -430,8 +480,9 @@ document.getElementById('btn-reset').addEventListener('click', () => {
 });
 
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  perspCam.aspect = window.innerWidth / window.innerHeight;
+  perspCam.updateProjectionMatrix();
+  updateOrthoFrustum();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
