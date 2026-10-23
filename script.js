@@ -46,13 +46,13 @@ const state = {
   r1: 2.0,
   r2: 1.5,
   offsetX: 0.0,
-  rot2: 0,
   mode: 'solid',
   autoRotate: false,
   pulse: false,
   showPoint: false,
   theta: 45,
-  axis: 'y' // trục xoay tự động
+  axis: 'y',          // trục xoay (tự động + thanh trượt)
+  target: 'all'       // hình đang được chọn để xoay: 'all' | 'b1' | 'b2'
 };
 
 const H1 = 8;          // chiều cao khối 1
@@ -61,10 +61,15 @@ let drawProgress = 0;  // 0 -> 1: vẽ dần đường giao tuyến (chạy luô
 let intro = 0;         // 0 -> 1: hiệu ứng khối "nở" ra lúc mở trang
 let intersectionLines = [];
 
+const TWO_PI = Math.PI * 2;
+const wrapPi = (a) => ((a + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
 // Giá trị đang hiển thị: luôn chạy dần về giá trị đích trong `state` (tạo transition mượt)
 // k1/k2: 0 = trụ tròn, 1 = lăng trụ vuông (giá trị giữa = đang biến hình)
 const view = {
-  r1: state.r1, r2: state.r2, offsetX: state.offsetX, rot2: state.rot2,
+  r1: state.r1, r2: state.r2, offsetX: state.offsetX,
   k1: state.shape1 === 'prism' ? 1 : 0,
   k2: state.shape2 === 'prism' ? 1 : 0
 };
@@ -72,7 +77,7 @@ const view = {
 function stepView(dt) {
   const f = 1 - Math.exp(-dt * 10);
   const target = {
-    r1: state.r1, r2: state.r2, offsetX: state.offsetX, rot2: state.rot2,
+    r1: state.r1, r2: state.r2, offsetX: state.offsetX,
     k1: state.shape1 === 'prism' ? 1 : 0,
     k2: state.shape2 === 'prism' ? 1 : 0
   };
@@ -83,6 +88,40 @@ function stepView(dt) {
     else if (d !== 0) { view[key] = target[key]; changed = true; }
   }
   return changed;
+}
+
+// Góc xoay (radian) của từng hình: 'all' = cả mô hình, 'b1' = khối 1, 'b2' = khối 2
+// cur = góc đang hiển thị, tgt = góc đích (cur chạy dần về tgt)
+const mkSpin = () => ({ cur: { x: 0, y: 0, z: 0 }, tgt: { x: 0, y: 0, z: 0 } });
+const spins = { all: mkSpin(), b1: mkSpin(), b2: mkSpin() };
+const AXES = ['x', 'y', 'z'];
+
+// Cập nhật thanh trượt theo hình đang chọn
+function syncSpinUI() {
+  const t = spins[state.target].tgt;
+  AXES.forEach((ax) => {
+    const deg = Math.round((wrapPi(t[ax]) * 180) / Math.PI);
+    document.getElementById('slider-spin-' + ax).value = deg;
+    document.getElementById('val-spin-' + ax).textContent = deg + '°';
+  });
+}
+
+// Trả về true nếu góc của khối 1 / khối 2 thay đổi (cần dựng lại giao tuyến)
+function stepSpins(dt, skipAll) {
+  const f = 1 - Math.exp(-dt * 10);
+  let poseChanged = false;
+  for (const key of ['all', 'b1', 'b2']) {
+    if (key === 'all' && skipAll) continue;
+    const s = spins[key];
+    for (const ax of AXES) {
+      if (state.autoRotate && key === state.target && ax === state.axis) continue;
+      const d = s.tgt[ax] - s.cur[ax];
+      if (d === 0) continue;
+      s.cur[ax] = Math.abs(d) < 0.0005 ? s.tgt[ax] : s.cur[ax] + d * f;
+      if (key !== 'all') poseChanged = true;
+    }
+  }
+  return poseChanged;
 }
 
 const modelGroup = new THREE.Group();
@@ -106,93 +145,13 @@ const hiddenMat = new THREE.LineBasicMaterial({ color: 0xfacc15, transparent: tr
 const genMat = new THREE.LineBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0.8 });
 const pointMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
 
-function addShapeMesh(geo, mat) {
-  modelGroup.add(new THREE.Mesh(geo, mat));
-  modelGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), edgeMat));
-}
-
-/* ---------- Hình học mặt cắt (có biến hình trụ <-> lăng trụ) ---------- */
+/* ---------- Hình học ---------- */
 
 // Bán kính theo hướng a: k=0 là đường tròn, k=1 là hình vuông cạnh 2r
 function radial(r, k, a) {
   const m = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
   return r * (1 + k * (1 / m - 1));
 }
-
-// Đa giác mặt cắt khối 1 trong mặt phẳng XZ, dùng để tìm z theo x
-let poly1 = [];
-function buildPoly1() {
-  const N = 192;
-  poly1 = [];
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2;
-    const rad = radial(view.r1, view.k1, a);
-    poly1.push([rad * Math.cos(a), rad * Math.sin(a)]);
-  }
-}
-
-// Điểm trên chu vi mặt cắt khối 2, hệ toạ độ cục bộ (chưa xoay, chưa lệch tâm)
-function sectionLocal(i, steps) {
-  const a = (i / steps) * Math.PI * 2;
-  const rad = radial(view.r2, view.k2, a);
-  return [rad * Math.cos(a), rad * Math.sin(a)];
-}
-
-// Cục bộ -> thế giới: xoay quanh trục khối 2 (trục Z) rồi tịnh tiến theo X
-function sectionToWorld(u, v) {
-  const a = (view.rot2 * Math.PI) / 180;
-  const c = Math.cos(a), s = Math.sin(a);
-  return [view.offsetX + u * c - v * s, u * s + v * c];
-}
-
-// [zLớnNhất, zNhỏNhất] của khối 1 tại hoành độ x (hoặc [] nếu x nằm ngoài)
-function zHits(x) {
-  let zmax = -Infinity, zmin = Infinity;
-  const n = poly1.length;
-  for (let i = 0; i < n; i++) {
-    const [x1, z1] = poly1[i];
-    const [x2, z2] = poly1[(i + 1) % n];
-    const lo = Math.min(x1, x2) - 1e-6, hi = Math.max(x1, x2) + 1e-6;
-    if (x < lo || x > hi) continue;
-    const dx = x2 - x1;
-    const zs = Math.abs(dx) < 1e-9 ? [z1, z2] : [z1 + ((x - x1) / dx) * (z2 - z1)];
-    zs.forEach((z) => { zmax = Math.max(zmax, z); zmin = Math.min(zmin, z); });
-  }
-  return zmax === -Infinity ? [] : [zmax, zmin];
-}
-
-/* ---------- Đường sinh & điểm giao ---------- */
-
-function addGeneratrix() {
-  if (!state.showPoint) return;
-
-  // Hướng θ trong hệ thế giới -> hệ cục bộ của mặt cắt
-  const a = (state.theta * Math.PI) / 180 - (view.rot2 * Math.PI) / 180;
-  const rad = radial(view.r2, view.k2, a);
-  const [x, y] = sectionToWorld(rad * Math.cos(a), rad * Math.sin(a));
-
-  const geo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(x, y, -L2 / 2),
-    new THREE.Vector3(x, y, L2 / 2)
-  ]);
-  modelGroup.add(new THREE.Line(geo, genMat));
-
-  if (Math.abs(y) > H1 / 2) return;
-  zHits(x).forEach((zz) => {
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), pointMat);
-    dot.position.set(x, y, zz);
-    modelGroup.add(dot);
-  });
-}
-
-function applyDrawRange() {
-  intersectionLines.forEach((line) => {
-    const total = line.geometry.attributes.position.count;
-    line.geometry.setDrawRange(0, Math.floor((total * drawProgress) / 2) * 2);
-  });
-}
-
-/* ---------- Dựng mô hình ---------- */
 
 // Khối trung gian giữa trụ tròn (k=0) và lăng trụ vuông (k=1), trục dọc theo Y
 function morphGeometry(r, h, k) {
@@ -223,27 +182,160 @@ function morphGeometry(r, h, k) {
   return geo;
 }
 
-function updateGeometry() {
+// Mỗi hình là một Group (mesh + cạnh) để xoay / dời độc lập
+function makeShape(geo, mat) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(geo, mat));
+  g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), edgeMat));
+  modelGroup.add(g);
+  return g;
+}
+
+/* ---------- Giao tuyến tổng quát (mặt lưới ∩ mặt lưới) ---------- */
+
+const EPS = 1e-6;
+const _d = new THREE.Vector3(), _e1 = new THREE.Vector3(), _e2 = new THREE.Vector3();
+const _h = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Vector3();
+
+// Danh sách tam giác của một hình, đã đưa về toạ độ của modelGroup
+function getTris(group, geo) {
+  group.updateMatrix();
+  const m = group.matrix;
+  const pos = geo.attributes.position;
+  const idx = geo.index;
+  const n = idx ? idx.count : pos.count;
+  const get = (i) => new THREE.Vector3().fromBufferAttribute(pos, idx ? idx.getX(i) : i).applyMatrix4(m);
+  const tris = [];
+  for (let i = 0; i < n; i += 3) {
+    const a = get(i), b = get(i + 1), c = get(i + 2);
+    tris.push({
+      a, b, c,
+      min: new THREE.Vector3(Math.min(a.x, b.x, c.x), Math.min(a.y, b.y, c.y), Math.min(a.z, b.z, c.z)),
+      max: new THREE.Vector3(Math.max(a.x, b.x, c.x), Math.max(a.y, b.y, c.y), Math.max(a.z, b.z, c.z))
+    });
+  }
+  return tris;
+}
+
+// Giao điểm của đoạn thẳng p->q với một tam giác (hoặc null)
+function segTri(p, q, tri) {
+  _d.subVectors(q, p);
+  _e1.subVectors(tri.b, tri.a);
+  _e2.subVectors(tri.c, tri.a);
+  _h.crossVectors(_d, _e2);
+  const det = _e1.dot(_h);
+  if (Math.abs(det) < 1e-12) return null;
+  const f = 1 / det;
+  _s.subVectors(p, tri.a);
+  const u = f * _s.dot(_h);
+  if (u < -EPS || u > 1 + EPS) return null;
+  _q.crossVectors(_s, _e1);
+  const v = f * _d.dot(_q);
+  if (v < -EPS || u + v > 1 + EPS) return null;
+  const t = f * _e2.dot(_q);
+  if (t < -EPS || t > 1 + EPS) return null;
+  return new THREE.Vector3().copy(p).addScaledVector(_d, t);
+}
+
+// Đoạn giao của hai tam giác -> đẩy 2 điểm vào out
+function triTri(ta, tb, out) {
+  const pts = [];
+  const add = (p) => {
+    if (p && !pts.some((q) => q.distanceToSquared(p) < 1e-10)) pts.push(p);
+  };
+  add(segTri(ta.a, ta.b, tb)); add(segTri(ta.b, ta.c, tb)); add(segTri(ta.c, ta.a, tb));
+  add(segTri(tb.a, tb.b, ta)); add(segTri(tb.b, tb.c, ta)); add(segTri(tb.c, tb.a, ta));
+  if (pts.length < 2) return;
+
+  let bi = 0, bj = 1, bd = 0;
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const d = pts[i].distanceToSquared(pts[j]);
+      if (d > bd) { bd = d; bi = i; bj = j; }
+    }
+  }
+  if (bd > 1e-8) out.push(pts[bi], pts[bj]);
+}
+
+function computeIntersectionPoints(tris1, tris2) {
+  const out = [];
+  for (const tb of tris2) {
+    for (const ta of tris1) {
+      if (ta.min.x > tb.max.x || ta.max.x < tb.min.x ||
+          ta.min.y > tb.max.y || ta.max.y < tb.min.y ||
+          ta.min.z > tb.max.z || ta.max.z < tb.min.z) continue;
+      triTri(ta, tb, out);
+    }
+  }
+  return out;
+}
+
+/* ---------- Đường sinh & điểm giao ---------- */
+
+// Đường sinh chạy dọc trục khối 2 tại góc θ của mặt cắt; điểm giao với khối 1 là các chấm đỏ
+function addGeneratrix(g2, tris1) {
+  if (!state.showPoint) return;
+
+  const a = (state.theta * Math.PI) / 180;
+  const rad = radial(view.r2, view.k2, a);
+  const u = rad * Math.cos(a), v = rad * Math.sin(a);
+  const p = new THREE.Vector3(u, v, -L2 / 2).applyMatrix4(g2.matrix);
+  const q = new THREE.Vector3(u, v, L2 / 2).applyMatrix4(g2.matrix);
+
+  modelGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p, q]), genMat));
+
+  const hits = [];
+  tris1.forEach((tri) => {
+    const h = segTri(p, q, tri);
+    if (h && !hits.some((o) => o.distanceToSquared(h) < 1e-6)) hits.push(h);
+  });
+  hits.forEach((h) => {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), pointMat);
+    dot.position.copy(h);
+    modelGroup.add(dot);
+  });
+}
+
+function applyDrawRange() {
+  intersectionLines.forEach((line) => {
+    const total = line.geometry.attributes.position.count;
+    line.geometry.setDrawRange(0, Math.floor((total * drawProgress) / 2) * 2);
+  });
+}
+
+/* ---------- Dựng mô hình ---------- */
+
+function clearGroup() {
   while (modelGroup.children.length > 0) {
     const obj = modelGroup.children[0];
-    if (obj.geometry) obj.geometry.dispose();
+    obj.traverse((c) => { if (c.geometry) c.geometry.dispose(); });
     modelGroup.remove(obj);
   }
-  buildPoly1();
+}
 
-  // Khối 1 (đứng)
-  addShapeMesh(morphGeometry(view.r1, H1, view.k1), mat1);
+function updateGeometry() {
+  clearGroup();
 
-  // Khối 2 (ngang, trục dọc theo Z)
+  // Khối 1 (đứng, trục Y)
+  const geo1 = morphGeometry(view.r1, H1, view.k1);
+  const g1 = makeShape(geo1, mat1);
+  g1.rotation.set(spins.b1.cur.x, spins.b1.cur.y, spins.b1.cur.z);
+
+  // Khối 2 (ngang, trục Z)
   const geo2 = morphGeometry(view.r2, L2, view.k2);
   geo2.rotateX(Math.PI / 2);
-  if (view.rot2 !== 0) geo2.rotateZ((view.rot2 * Math.PI) / 180);
-  geo2.translate(view.offsetX, 0, 0);
-  addShapeMesh(geo2, mat2);
+  const g2 = makeShape(geo2, mat2);
+  g2.position.set(view.offsetX, 0, 0);
+  g2.rotation.set(spins.b2.cur.x, spins.b2.cur.y, spins.b2.cur.z);
+
+  g1.updateMatrix();
+  g2.updateMatrix();
+  const tris1 = getTris(g1, geo1);
+  const tris2 = getTris(g2, geo2);
 
   // Đường giao tuyến
   intersectionLines = [];
-  const pts = computeIntersectionPoints();
+  const pts = computeIntersectionPoints(tris1, tris2);
   if (pts.length > 0) {
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
     const hidden = new THREE.LineSegments(geo, hiddenMat);
@@ -255,31 +347,8 @@ function updateGeometry() {
     applyDrawRange();
   }
 
-  addGeneratrix();
+  addGeneratrix(g2, tris1);
   applyRenderMode();
-}
-
-// Giao tuyến = các điểm trên chu vi mặt cắt khối 2 nằm trên mặt khối 1
-function computeIntersectionPoints() {
-  const segments = [];
-  const steps = 360;
-
-  for (const sz of [1, -1]) {
-    let prev = null;
-    for (let i = 0; i <= steps; i++) {
-      const [u, v] = sectionLocal(i, steps);
-      const [x, y] = sectionToWorld(u, v);
-
-      let curr = null;
-      if (Math.abs(y) <= H1 / 2) {
-        const zs = zHits(x);
-        if (zs.length) curr = new THREE.Vector3(x, y, sz > 0 ? zs[0] : zs[1]);
-      }
-      if (curr && prev) segments.push(prev, curr);
-      prev = curr;
-    }
-  }
-  return segments;
 }
 
 const MODES = {
@@ -334,7 +403,6 @@ function bindSlider(sliderId, valId, key, { decimals = 1, suffix = '' } = {}) {
 bindSlider('slider-r1', 'val-r1', 'r1');
 bindSlider('slider-r2', 'val-r2', 'r2');
 bindSlider('slider-offset', 'val-offset', 'offsetX');
-bindSlider('slider-rot2', 'val-rot2', 'rot2', { decimals: 0, suffix: '°' });
 bindSlider('slider-theta', 'val-theta', 'theta', { decimals: 0, suffix: '°' });
 
 const btnPoint = document.getElementById('btn-point');
@@ -366,33 +434,18 @@ const VIEWS = {
   iso:   new THREE.Vector3(8, 6, 10)
 };
 const origin = new THREE.Vector3();
-const TWO_PI = Math.PI * 2;
-const wrapPi = (a) => ((a + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
-const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
 let tween = null;
-
-// Góc xoay của cả mô hình quanh 3 trục (radian)
-const spin = { x: 0, y: 0, z: 0 };        // góc đang hiển thị
-const spinTarget = { x: 0, y: 0, z: 0 };  // góc đích (spin chạy dần về đây)
-
-function syncSpinUI() {
-  ['x', 'y', 'z'].forEach((ax) => {
-    const deg = Math.round((wrapPi(spin[ax]) * 180) / Math.PI);
-    document.getElementById('slider-spin-' + ax).value = deg;
-    document.getElementById('val-spin-' + ax).textContent = deg + '°';
-  });
-}
 
 function flyTo(viewName) {
   const from = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
   const to = new THREE.Spherical().setFromVector3(VIEWS[viewName]);
+  const r = spins.all.cur;
   tween = {
     from, to,
     dTheta: wrapPi(to.theta - from.theta), // đi đường ngắn nhất
     fromTarget: controls.target.clone(),
-    fromRot: { x: wrapPi(spin.x), y: wrapPi(spin.y), z: wrapPi(spin.z) },
+    fromRot: { x: wrapPi(r.x), y: wrapPi(r.y), z: wrapPi(r.z) }, // cả mô hình quay về 0
     t: 0
   };
 }
@@ -460,14 +513,16 @@ btnPulse.addEventListener('click', () => {
   btnPulse.classList.toggle('active', state.pulse);
 });
 
-['x', 'y', 'z'].forEach((ax) => {
+// Thanh trượt xoay: áp dụng cho hình đang chọn
+AXES.forEach((ax) => {
   document.getElementById('slider-spin-' + ax).addEventListener('input', (e) => {
-    spinTarget[ax] = (parseFloat(e.target.value) * Math.PI) / 180;
+    spins[state.target].tgt[ax] = (parseFloat(e.target.value) * Math.PI) / 180;
     document.getElementById('val-spin-' + ax).textContent = e.target.value + '°';
-    tween = null;
+    if (state.target === 'all') tween = null;
   });
 });
 
+// Chọn trục xoay tự động
 document.querySelectorAll('.axis-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.axis-btn').forEach((b) => b.classList.remove('active'));
@@ -476,11 +531,22 @@ document.querySelectorAll('.axis-btn').forEach((btn) => {
   });
 });
 
+// Chọn hình muốn xoay: cả mô hình / khối 1 / khối 2
+document.querySelectorAll('.target-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.target-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.target = btn.dataset.target;
+    syncSpinUI();
+  });
+});
+
 document.getElementById('btn-reset').addEventListener('click', () => {
   Object.assign(state, {
     shape1: 'cylinder', shape2: 'cylinder',
-    r1: 2.0, r2: 1.5, offsetX: 0.0, rot2: 0, theta: 45,
-    mode: 'solid', autoRotate: false, pulse: false, showPoint: false
+    r1: 2.0, r2: 1.5, offsetX: 0.0, theta: 45,
+    mode: 'solid', autoRotate: false, pulse: false, showPoint: false,
+    axis: 'y', target: 'all'
   });
 
   document.querySelectorAll('.shape-btn-1').forEach((b) => b.classList.toggle('active', b.dataset.shape1 === 'cylinder'));
@@ -492,8 +558,6 @@ document.getElementById('btn-reset').addEventListener('click', () => {
       document.getElementById(vid).textContent = v.toFixed(1);
     });
 
-  document.getElementById('slider-rot2').value = 0;
-  document.getElementById('val-rot2').textContent = '0°';
   document.getElementById('slider-theta').value = 45;
   document.getElementById('val-theta').textContent = '45°';
 
@@ -501,8 +565,12 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   [btnRotate, btnPulse, btnPoint].forEach((b) => b.classList.remove('active'));
   btnPoint.textContent = 'Hiện đường sinh & điểm giao';
 
-  state.axis = 'y';
+  // Góc xoay: trả hết về 0 (cả mô hình do flyTo xử lý)
+  ['all', 'b1', 'b2'].forEach((k) => AXES.forEach((ax) => { spins[k].tgt[ax] = 0; }));
   document.querySelectorAll('.axis-btn').forEach((b) => b.classList.toggle('active', b.dataset.axis === 'y'));
+  document.querySelectorAll('.target-btn').forEach((b) => b.classList.toggle('active', b.dataset.target === 'all'));
+  syncSpinUI();
+
   setProjection(false);
   flyTo('iso');
   drawProgress = 0;
@@ -536,10 +604,10 @@ function animate() {
     applyDrawRange();
   }
 
-  // Transition kích thước / lệch tâm / góc xoay / trụ <-> lăng trụ
-  if (stepView(dt)) updateGeometry();
+  // Transition kích thước / lệch tâm / trụ <-> lăng trụ
+  let dirty = stepView(dt);
 
-  // Chuyển góc nhìn
+  // Chuyển góc nhìn (đồng thời đưa cả mô hình về góc 0)
   if (tween) {
     tween.t = Math.min(1, tween.t + dt / 0.9);
     const e = easeInOut(tween.t);
@@ -552,29 +620,34 @@ function animate() {
       from.theta + tween.dTheta * e
     );
     camera.position.setFromSpherical(s).add(controls.target);
-    ['x', 'y', 'z'].forEach((ax) => {
-      spin[ax] = tween.fromRot[ax] * (1 - e);
-      spinTarget[ax] = spin[ax];
+
+    AXES.forEach((ax) => {
+      const v = tween.fromRot[ax] * (1 - e);
+      spins.all.cur[ax] = v;
+      spins.all.tgt[ax] = v;
     });
     syncSpinUI();
 
     if (tween.t >= 1) tween = null;
-  } else if (state.autoRotate) {
-    spin[state.axis] = wrapPi(spin[state.axis] + dt * 0.5);
-    spinTarget[state.axis] = spin[state.axis];
+  }
+
+  // Xoay tự động quanh trục đã chọn, cho hình đã chọn
+  if (state.autoRotate && !(tween && state.target === 'all')) {
+    const sp = spins[state.target];
+    sp.cur[state.axis] = wrapPi(sp.cur[state.axis] + dt * 0.5);
+    sp.tgt[state.axis] = sp.cur[state.axis];
+    if (state.target !== 'all') dirty = true;
     syncSpinUI();
   }
 
-  // Transition khi kéo thanh trượt trục: góc chạy mượt về giá trị đích
-  if (!tween) {
-    const f = 1 - Math.exp(-dt * 10);
-    ['x', 'y', 'z'].forEach((ax) => {
-      if (state.autoRotate && ax === state.axis) return;
-      const d = spinTarget[ax] - spin[ax];
-      spin[ax] = Math.abs(d) < 0.0005 ? spinTarget[ax] : spin[ax] + d * f;
-    });
-  }
-  modelGroup.rotation.set(spin.x, spin.y, spin.z);
+  // Transition khi kéo thanh trượt xoay: góc chạy mượt về giá trị đích
+  if (stepSpins(dt, !!tween)) dirty = true;
+
+  // Khối 1 / khối 2 đổi vị trí hay góc -> dựng lại và tính lại giao tuyến
+  if (dirty) updateGeometry();
+
+  const r = spins.all.cur;
+  modelGroup.rotation.set(r.x, r.y, r.z);
 
   // Scale = hiệu ứng mở đầu x hiệu ứng "thở"
   const pulse = state.pulse ? 1 + Math.sin(now * 3) * 0.05 : 1;

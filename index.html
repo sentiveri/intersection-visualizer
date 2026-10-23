@@ -11,13 +11,13 @@
 </head>
 <body>
   <div id="canvas-container"></div>
-
+ 
   <button class="btn panel-toggle" id="btn-toggle">Ẩn bảng</button>
-
+ 
   <aside class="control-panel" id="panel">
     <h1>Giao tuyến hình học 3D</h1>
     <p class="subtitle">Hình học họa hình & Vẽ kỹ thuật</p>
-
+ 
    <!-- chon dang khoi -->
     <section class="section">
       <h2>Dạng khối giao nhau</h2>
@@ -36,7 +36,7 @@
         </div>
       </div>
     </section>
-
+ 
     <!-- chon che do hien thi -->
     <section class="section">
       <h2>Chế độ hiển thị</h2>
@@ -46,7 +46,7 @@
         <button class="btn" data-mode="wireframe">Khung dây</button>
       </div>
     </section>
-
+ 
     <!-- thong so hinh hoc -->
     <section class="section">
       <h2>Thông số hình học</h2>
@@ -62,12 +62,8 @@
         <div class="slider-label"><span>Độ lệch tâm (OffsetX)</span><strong id="val-offset">0.0</strong></div>
         <input type="range" id="slider-offset" min="-2.5" max="2.5" step="0.05" value="0.0">
       </div>
-      <div class="slider-group">
-        <div class="slider-label"><span>Xoay góc khối 2 (Độ)</span><strong id="val-rot2">0°</strong></div>
-        <input type="range" id="slider-rot2" min="0" max="90" step="5" value="0">
-      </div>
     </section>
-
+ 
     <!-- duong sinh / diem giao -->
     <section class="section">
       <h2>Đường sinh & Điểm giao</h2>
@@ -77,7 +73,7 @@
       </div>
       <button class="btn btn-full" id="btn-point">Hiện đường sinh & điểm giao</button>
     </section>
-
+ 
     <!-- goc nhin -->
     <section class="section">
       <h2>Góc nhìn chiếu đứng/bằng/cạnh</h2>
@@ -89,10 +85,18 @@
       </div>
       <button class="btn btn-full" id="btn-proj" style="margin-top: 6px;">Camera: Phối cảnh</button>
     </section>
-
+ 
     <!-- xoay quanh truc X Y Z -->
     <section class="section">
-      <h2>Xoay mô hình quanh trục</h2>
+      <h2>Xoay quanh trục</h2>
+      <div class="slider-group">
+        <div class="slider-label"><span>Chọn hình muốn xoay</span></div>
+        <div class="btn-row">
+          <button class="btn target-btn active" data-target="all">Cả hai</button>
+          <button class="btn target-btn" data-target="b1">Khối 1</button>
+          <button class="btn target-btn" data-target="b2">Khối 2</button>
+        </div>
+      </div>
       <div class="slider-group">
         <div class="slider-label"><span>Trục X</span><strong id="val-spin-x">0°</strong></div>
         <input type="range" id="slider-spin-x" min="-180" max="180" step="1" value="0">
@@ -114,7 +118,7 @@
         </div>
       </div>
     </section>
-
+ 
     <!-- fx -->
     <section class="section">
       <h2>Tương tác & Hiệu ứng</h2>
@@ -124,16 +128,16 @@
       </div>
       <button class="btn btn-full btn-draw" id="btn-draw">Vẽ động đường giao tuyến</button>
     </section>
-
+ 
     <button class="btn btn-full btn-reset" id="btn-reset">Đặt lại mặc định</button>
-
+ 
     <div class="legend">
       <span class="legend-item"><i class="dot c1"></i>Khối đứng</span>
       <span class="legend-item"><i class="dot c2"></i>Khối ngang</span>
       <span class="legend-item"><i class="dot intersect"></i>Giao tuyến</span>
     </div>
   </aside>
-
+ 
   <script src="script.js"></script>
 </body>
 </html>
