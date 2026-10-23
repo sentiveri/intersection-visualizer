@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Giao tuyến khối trụ 3D</title>
+  <title>Giao tuyến khối hình học 3D</title>
+  <link rel="icon" href="public/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -14,9 +15,29 @@
   <button class="btn panel-toggle" id="btn-toggle">Ẩn bảng</button>
 
   <aside class="control-panel" id="panel">
-    <h1>Giao tuyến khối trụ 3D</h1>
+    <h1>Giao tuyến hình học 3D</h1>
     <p class="subtitle">Hình học họa hình & Vẽ kỹ thuật</p>
 
+   <!-- chon dang khoi -->
+    <section class="section">
+      <h2>Dạng khối giao nhau</h2>
+      <div class="slider-group">
+        <div class="slider-label"><span>Khối đứng (Khối 1)</span></div>
+        <div class="btn-row">
+          <button class="btn shape-btn-1 active" data-shape1="cylinder">Trụ tròn</button>
+          <button class="btn shape-btn-1" data-shape1="prism">Lăng trụ vuông</button>
+        </div>
+      </div>
+      <div class="slider-group" style="margin-top: 8px;">
+        <div class="slider-label"><span>Khối ngang (Khối 2)</span></div>
+        <div class="btn-row">
+          <button class="btn shape-btn-2 active" data-shape2="cylinder">Trụ tròn</button>
+          <button class="btn shape-btn-2" data-shape2="prism">Lăng trụ vuông</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- chon che do hien thi -->
     <section class="section">
       <h2>Chế độ hiển thị</h2>
       <div class="btn-row">
@@ -26,55 +47,63 @@
       </div>
     </section>
 
+    <!-- thong so hinh hoc -->
     <section class="section">
       <h2>Thông số hình học</h2>
       <div class="slider-group">
-        <div class="slider-label"><span>Bán kính trụ đứng (R₁)</span><strong id="val-r1">2.0</strong></div>
-        <input type="range" id="slider-r1" min="0.8" max="3.5" step="0.1" value="2.0">
+        <div class="slider-label"><span>Kích thước Khối 1 (R₁ / W₁)</span><strong id="val-r1">2.0</strong></div>
+        <input type="range" id="slider-r1" min="0.8" max="3.5" step="0.05" value="2.0">
       </div>
       <div class="slider-group">
-        <div class="slider-label"><span>Bán kính trụ ngang (R₂)</span><strong id="val-r2">1.5</strong></div>
-        <input type="range" id="slider-r2" min="0.5" max="3.5" step="0.1" value="1.5">
+        <div class="slider-label"><span>Kích thước Khối 2 (R₂ / W₂)</span><strong id="val-r2">1.5</strong></div>
+        <input type="range" id="slider-r2" min="0.5" max="3.5" step="0.05" value="1.5">
       </div>
       <div class="slider-group">
-        <div class="slider-label"><span>Độ lệch tâm trục X (e)</span><strong id="val-offset">0.0</strong></div>
-        <input type="range" id="slider-offset" min="-2.5" max="2.5" step="0.1" value="0.0">
+        <div class="slider-label"><span>Độ lệch tâm (OffsetX)</span><strong id="val-offset">0.0</strong></div>
+        <input type="range" id="slider-offset" min="-2.5" max="2.5" step="0.05" value="0.0">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span>Xoay góc khối 2 (Độ)</span><strong id="val-rot2">0°</strong></div>
+        <input type="range" id="slider-rot2" min="0" max="90" step="5" value="0">
       </div>
     </section>
 
+    <!-- duong sinh / diem giao -->
     <section class="section">
-      <h2>Điểm giao đường sinh với mặt trụ</h2>
+      <h2>Đường sinh & Điểm giao</h2>
       <div class="slider-group">
-        <div class="slider-label"><span>Góc đường sinh (θ)</span><strong id="val-theta">45°</strong></div>
+        <div class="slider-label"><span>Vị trí đường sinh (θ)</span><strong id="val-theta">45°</strong></div>
         <input type="range" id="slider-theta" min="0" max="360" step="1" value="45">
       </div>
-      <button class="btn btn-full" id="btn-point">Hiện điểm giao</button>
+      <button class="btn btn-full" id="btn-point">Hiện đường sinh & điểm giao</button>
     </section>
 
+    <!-- goc nhin -->
     <section class="section">
-      <h2>Góc nhìn chuẩn</h2>
+      <h2>Góc nhìn chiếu đứng/bằng/cạnh</h2>
       <div class="btn-grid">
-        <button class="btn view-btn" data-view="front">Mặt trước</button>
-        <button class="btn view-btn" data-view="top">Trên xuống</button>
-        <button class="btn view-btn" data-view="side">Mặt bên</button>
-        <button class="btn view-btn" data-view="iso">Góc nhìn 3D</button>
+        <button class="btn view-btn" data-view="front">Mặt trước (P1)</button>
+        <button class="btn view-btn" data-view="top">Trên xuống (P2)</button>
+        <button class="btn view-btn" data-view="side">Mặt bên (P3)</button>
+        <button class="btn view-btn" data-view="iso">Phối cảnh 3D</button>
       </div>
     </section>
 
+    <!-- fx -->
     <section class="section">
-      <h2>Hiệu ứng</h2>
+      <h2>Tương tác & Hiệu ứng</h2>
       <div class="btn-row">
         <button class="btn" id="btn-rotate">Xoay tự động</button>
         <button class="btn" id="btn-pulse">Hiệu ứng thở</button>
       </div>
-      <button class="btn btn-full btn-draw" id="btn-draw">Vẽ giao tuyến</button>
+      <button class="btn btn-full btn-draw" id="btn-draw">Vẽ động đường giao tuyến</button>
     </section>
 
     <button class="btn btn-full btn-reset" id="btn-reset">Đặt lại mặc định</button>
 
     <div class="legend">
-      <span class="legend-item"><i class="dot c1"></i>Trụ đứng</span>
-      <span class="legend-item"><i class="dot c2"></i>Trụ ngang</span>
+      <span class="legend-item"><i class="dot c1"></i>Khối đứng</span>
+      <span class="legend-item"><i class="dot c2"></i>Khối ngang</span>
       <span class="legend-item"><i class="dot intersect"></i>Giao tuyến</span>
     </div>
   </aside>

@@ -2,13 +2,16 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 body {
   overflow: hidden;
-  background: #0b1120;
-  color: #f1f5f9;
+  color: #f8fafc;
+  background:
+    radial-gradient(ellipse at 30% 20%, #1e3a5f 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 90%, #0b3b3a 0%, transparent 50%),
+    #0b1120;
 }
 
 #canvas-container {
@@ -16,49 +19,77 @@ body {
   inset: 0;
 }
 
+/* ---------- Bảng điều khiển ---------- */
 .control-panel {
   position: fixed;
-  top: 52px;
-  right: 12px;
-  width: 280px;
-  max-height: calc(100vh - 64px);
+  top: 60px;
+  right: 16px;
+  width: 310px;
+  max-height: calc(100vh - 76px);
   overflow-y: auto;
-  padding: 14px;
-  background: rgba(15, 23, 42, 0.88);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 12px;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
   z-index: 10;
   scrollbar-width: thin;
-  scrollbar-color: #475569 transparent;
+  scrollbar-color: #334155 transparent;
+  animation: panel-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.control-panel.hidden {
+  display: none;
 }
 
 .control-panel h1 {
-  font-size: 1rem;
-  color: #38bdf8;
-  margin-bottom: 2px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, #38bdf8, #34d399);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .subtitle {
   font-size: 0.75rem;
   color: #94a3b8;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  margin-top: 2px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.section { margin-bottom: 12px; }
+.section {
+  margin-bottom: 14px;
+}
 
 .section h2 {
   font-size: 0.78rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: #cbd5e1;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
-.btn-row { display: flex; gap: 6px; }
-.btn-row .btn { flex: 1; padding: 7px 4px; }
+.btn-row {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-row .btn {
+  flex: 1;
+  padding: 7px 4px;
+}
 
 .btn-grid {
   display: grid;
@@ -66,83 +97,178 @@ body {
   gap: 6px;
 }
 
+/* ---------- Nút ---------- */
 .btn {
-  background: rgba(30, 41, 59, 0.9);
+  background: rgba(30, 41, 59, 0.7);
   color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  padding: 7px 8px;
-  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 10px;
+  border-radius: 8px;
   font-size: 0.78rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.15s;
 }
 
-.btn-full { width: 100%; }
-.btn-draw { margin-top: 6px; }
-.btn-reset { margin-bottom: 12px; }
+.btn:hover {
+  background: rgba(51, 65, 85, 0.9);
+  border-color: #38bdf8;
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.btn:focus-visible,
+input[type="range"]:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.btn.active {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  border-color: #38bdf8;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.btn-draw {
+  margin-top: 6px;
+  background: rgba(250, 204, 21, 0.12);
+  border-color: rgba(250, 204, 21, 0.5);
+  color: #fde047;
+}
+
+.btn-draw:hover {
+  background: #eab308;
+  border-color: #eab308;
+  color: #1e1b0a;
+}
+
+.btn-reset {
+  margin-bottom: 12px;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.btn-reset:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
 
 .panel-toggle {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: 16px;
+  right: 16px;
   z-index: 11;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.control-panel.hidden { display: none; }
-
-.btn:hover { background: rgba(51, 65, 85, 0.9); border-color: #38bdf8; }
-
-.btn.active {
-  background: #0284c7;
-  border-color: #38bdf8;
-  color: #fff;
-  font-weight: 600;
+/* ---------- Slider ---------- */
+.slider-group {
+  margin-bottom: 8px;
 }
-
-.slider-group { margin-bottom: 8px; }
 
 .slider-label {
   display: flex;
   justify-content: space-between;
-  font-size: 0.78rem;
-  margin-bottom: 2px;
+  font-size: 0.76rem;
+  color: #94a3b8;
+  margin-bottom: 4px;
 }
 
 .slider-label strong {
   color: #38bdf8;
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  height: 16px;
-  accent-color: #38bdf8;
+  height: 6px;
+  border-radius: 3px;
+  background: #334155;
   cursor: pointer;
 }
 
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #0f172a;
+  box-shadow: 0 0 0 1px #38bdf8, 0 0 10px rgba(56, 189, 248, 0.5);
+  transition: transform 0.15s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #0f172a;
+}
+
+/* ---------- Chú thích ---------- */
 .legend {
   display: flex;
   justify-content: space-between;
-  padding-top: 8px;
-  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.72rem;
   color: #cbd5e1;
 }
 
-.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
-.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.dot.c1 { background: #3b82f6; }
-.dot.c2 { background: #10b981; }
-.dot.intersect { background: #facc15; }
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.c1 { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
+.dot.c2 { background: #10b981; box-shadow: 0 0 8px #10b981; }
+.dot.intersect { background: #facc15; box-shadow: 0 0 8px #facc15; }
 
 @media (max-width: 600px) {
   .control-panel {
     top: auto;
-    bottom: 8px;
-    left: 8px;
-    right: 8px;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
     width: auto;
-    max-height: 45vh;
+    max-height: 50vh;
   }
+  .panel-toggle {
+    top: 12px;
+    right: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control-panel { animation: none; }
+  .btn { transition: none; }
 }
