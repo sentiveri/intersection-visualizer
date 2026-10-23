@@ -89,6 +89,31 @@
       <button class="btn btn-full" id="btn-proj" style="margin-top: 6px;">Camera: Phối cảnh</button>
     </section>
 
+    <!-- xoay quanh truc X Y Z -->
+    <section class="section">
+      <h2>Xoay mô hình quanh trục</h2>
+      <div class="slider-group">
+        <div class="slider-label"><span>Trục X</span><strong id="val-spin-x">0°</strong></div>
+        <input type="range" id="slider-spin-x" min="-180" max="180" step="1" value="0">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span>Trục Y</span><strong id="val-spin-y">0°</strong></div>
+        <input type="range" id="slider-spin-y" min="-180" max="180" step="1" value="0">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span>Trục Z</span><strong id="val-spin-z">0°</strong></div>
+        <input type="range" id="slider-spin-z" min="-180" max="180" step="1" value="0">
+      </div>
+      <div class="slider-group" style="margin-top: 8px;">
+        <div class="slider-label"><span>Trục khi bấm "Xoay tự động"</span></div>
+        <div class="btn-row">
+          <button class="btn axis-btn" data-axis="x">X</button>
+          <button class="btn axis-btn active" data-axis="y">Y</button>
+          <button class="btn axis-btn" data-axis="z">Z</button>
+        </div>
+      </div>
+    </section>
+
     <!-- fx -->
     <section class="section">
       <h2>Tương tác & Hiệu ứng</h2>

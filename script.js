@@ -51,7 +51,8 @@ const state = {
   autoRotate: false,
   pulse: false,
   showPoint: false,
-  theta: 45
+  theta: 45,
+  axis: 'y' // trục xoay tự động
 };
 
 const H1 = 8;          // chiều cao khối 1
@@ -107,7 +108,7 @@ const pointMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
 
 function addShapeMesh(geo, mat) {
   modelGroup.add(new THREE.Mesh(geo, mat));
-  modelGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 1), edgeMat));
+  modelGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), edgeMat));
 }
 
 /* ---------- Hình học mặt cắt (có biến hình trụ <-> lăng trụ) ---------- */
@@ -372,6 +373,17 @@ const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
 let tween = null;
 
+// Góc xoay của cả mô hình quanh 3 trục (radian)
+const spin = { x: 0, y: 0, z: 0 };
+
+function syncSpinUI() {
+  ['x', 'y', 'z'].forEach((ax) => {
+    const deg = Math.round((wrapPi(spin[ax]) * 180) / Math.PI);
+    document.getElementById('slider-spin-' + ax).value = deg;
+    document.getElementById('val-spin-' + ax).textContent = deg + '°';
+  });
+}
+
 function flyTo(viewName) {
   const from = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
   const to = new THREE.Spherical().setFromVector3(VIEWS[viewName]);
@@ -379,7 +391,7 @@ function flyTo(viewName) {
     from, to,
     dTheta: wrapPi(to.theta - from.theta), // đi đường ngắn nhất
     fromTarget: controls.target.clone(),
-    fromRot: wrapPi(modelGroup.rotation.y),
+    fromRot: { x: wrapPi(spin.x), y: wrapPi(spin.y), z: wrapPi(spin.z) },
     t: 0
   };
 }
@@ -447,6 +459,22 @@ btnPulse.addEventListener('click', () => {
   btnPulse.classList.toggle('active', state.pulse);
 });
 
+['x', 'y', 'z'].forEach((ax) => {
+  document.getElementById('slider-spin-' + ax).addEventListener('input', (e) => {
+    spin[ax] = (parseFloat(e.target.value) * Math.PI) / 180;
+    document.getElementById('val-spin-' + ax).textContent = e.target.value + '°';
+    tween = null;
+  });
+});
+
+document.querySelectorAll('.axis-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.axis-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.axis = btn.dataset.axis;
+  });
+});
+
 document.getElementById('btn-reset').addEventListener('click', () => {
   Object.assign(state, {
     shape1: 'cylinder', shape2: 'cylinder',
@@ -472,6 +500,8 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   [btnRotate, btnPulse, btnPoint].forEach((b) => b.classList.remove('active'));
   btnPoint.textContent = 'Hiện đường sinh & điểm giao';
 
+  state.axis = 'y';
+  document.querySelectorAll('.axis-btn').forEach((b) => b.classList.toggle('active', b.dataset.axis === 'y'));
   setProjection(false);
   flyTo('iso');
   drawProgress = 0;
@@ -521,12 +551,15 @@ function animate() {
       from.theta + tween.dTheta * e
     );
     camera.position.setFromSpherical(s).add(controls.target);
-    modelGroup.rotation.y = tween.fromRot * (1 - e);
+    ['x', 'y', 'z'].forEach((ax) => { spin[ax] = tween.fromRot[ax] * (1 - e); });
+    syncSpinUI();
 
     if (tween.t >= 1) tween = null;
   } else if (state.autoRotate) {
-    modelGroup.rotation.y += 0.008;
+    spin[state.axis] += dt * 0.5;
+    syncSpinUI();
   }
+  modelGroup.rotation.set(spin.x, spin.y, spin.z);
 
   // Scale = hiệu ứng mở đầu x hiệu ứng "thở"
   const pulse = state.pulse ? 1 + Math.sin(now * 3) * 0.05 : 1;
