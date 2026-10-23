@@ -374,7 +374,8 @@ const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 let tween = null;
 
 // Góc xoay của cả mô hình quanh 3 trục (radian)
-const spin = { x: 0, y: 0, z: 0 };
+const spin = { x: 0, y: 0, z: 0 };        // góc đang hiển thị
+const spinTarget = { x: 0, y: 0, z: 0 };  // góc đích (spin chạy dần về đây)
 
 function syncSpinUI() {
   ['x', 'y', 'z'].forEach((ax) => {
@@ -461,7 +462,7 @@ btnPulse.addEventListener('click', () => {
 
 ['x', 'y', 'z'].forEach((ax) => {
   document.getElementById('slider-spin-' + ax).addEventListener('input', (e) => {
-    spin[ax] = (parseFloat(e.target.value) * Math.PI) / 180;
+    spinTarget[ax] = (parseFloat(e.target.value) * Math.PI) / 180;
     document.getElementById('val-spin-' + ax).textContent = e.target.value + '°';
     tween = null;
   });
@@ -551,13 +552,27 @@ function animate() {
       from.theta + tween.dTheta * e
     );
     camera.position.setFromSpherical(s).add(controls.target);
-    ['x', 'y', 'z'].forEach((ax) => { spin[ax] = tween.fromRot[ax] * (1 - e); });
+    ['x', 'y', 'z'].forEach((ax) => {
+      spin[ax] = tween.fromRot[ax] * (1 - e);
+      spinTarget[ax] = spin[ax];
+    });
     syncSpinUI();
 
     if (tween.t >= 1) tween = null;
   } else if (state.autoRotate) {
-    spin[state.axis] += dt * 0.5;
+    spin[state.axis] = wrapPi(spin[state.axis] + dt * 0.5);
+    spinTarget[state.axis] = spin[state.axis];
     syncSpinUI();
+  }
+
+  // Transition khi kéo thanh trượt trục: góc chạy mượt về giá trị đích
+  if (!tween) {
+    const f = 1 - Math.exp(-dt * 10);
+    ['x', 'y', 'z'].forEach((ax) => {
+      if (state.autoRotate && ax === state.axis) return;
+      const d = spinTarget[ax] - spin[ax];
+      spin[ax] = Math.abs(d) < 0.0005 ? spinTarget[ax] : spin[ax] + d * f;
+    });
   }
   modelGroup.rotation.set(spin.x, spin.y, spin.z);
 
